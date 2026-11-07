@@ -1,0 +1,5 @@
+Metadata-Version: 2.4
+Name: x20cfg
+Version: 0.1.0
+Summary: Configure EasySMX X20 lighting and button mapping on Linux (KeyLinker protocol)
+Requires-Python: >=3.9

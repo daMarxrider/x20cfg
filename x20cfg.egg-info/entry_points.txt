@@ -1,0 +1,3 @@
+[console_scripts]
+x20cfg = x20cfg.__main__:main
+x20cfg-gui = x20cfg.gui:run

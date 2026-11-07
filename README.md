@@ -6,9 +6,14 @@ No dependencies, no root: it talks ATT over a raw kernel L2CAP socket.
 
 ## GUI
 
-`python -m x20cfg gui` (needs GTK4 + libadwaita + PyGObject). Click a button on the
+`./x20cfg-gui.sh` — creates/refreshes a venv (with system site-packages for GTK),
+checks the GTK4/libadwaita bindings and starts the GUI. Or `python -m x20cfg gui`. Click a button on the
 controller drawing to remap it, or a light zone to change colour/brightness/breathing,
 then press **Apply**. Pressed buttons are highlighted live.
+
+Colours are free 24-bit RGB (picker with custom colours, hex field or R/G/B).
+The 4 zones can get a static gradient or rainbow; the controller's *animated* rainbow
+is a built-in mode not exposed by the KeyLinker protocol (see issue #8).
 
 ## Usage
 

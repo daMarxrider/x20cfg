@@ -472,6 +472,7 @@ class Window(Adw.ApplicationWindow):
             lg = Adw.PreferencesGroup(title="All light zones")
             self.light_rows(lg, list(range(len(self.lights))))
             self.panel.append(lg)
+            self.panel.append(self.gradient_group())
 
     def panel_key(self, code):
         group = Adw.PreferencesGroup(title="Button %s" % keys.name(code))
@@ -514,24 +515,56 @@ class Window(Adw.ApplicationWindow):
                 fn(self.lights[z])
             self.mark("lights")
 
-        color_btn = Gtk.ColorDialogButton(dialog=Gtk.ColorDialog(with_alpha=False), valign=Gtk.Align.CENTER)
-        rgba = Gdk.RGBA()
-        rgba.red, rgba.green, rgba.blue, rgba.alpha = first.r / 255, first.g / 255, first.b / 255, 1
-        color_btn.set_rgba(rgba)
+        # Any 24-bit colour is accepted by the controller; picker, hex and R/G/B stay in sync.
+        color_btn = self.color_button((first.r, first.g, first.b))
+        hex_row = Adw.EntryRow(title="Hex", text="#%02x%02x%02x" % (first.r, first.g, first.b))
+        spins = [Adw.SpinRow.new_with_range(0, 255, 1) for _ in range(3)]
+        syncing = [False]
 
-        def on_color(btn, _pspec):
-            c = btn.get_rgba()
-            rgb = [round(v * 255) for v in (c.red, c.green, c.blue)]
+        def set_rgb(rgb, source):
+            if syncing[0]:
+                return
+            syncing[0] = True
+            if source is not color_btn:
+                color_btn.set_rgba(self.rgba(rgb))
+            if source is not hex_row:
+                hex_row.set_text("#%02x%02x%02x" % tuple(rgb))
+            for spin, v in zip(spins, rgb):
+                if source is not spin:
+                    spin.set_value(v)
+            syncing[0] = False
 
             def setc(light):
                 light.r, light.g, light.b = rgb
             update(setc)
 
+        def on_color(btn, _pspec):
+            c = btn.get_rgba()
+            set_rgb([round(v * 255) for v in (c.red, c.green, c.blue)], btn)
+
+        def on_hex(entry):
+            t = entry.get_text().strip().lstrip("#")
+            if len(t) == 6:
+                try:
+                    set_rgb([int(t[i:i + 2], 16) for i in (0, 2, 4)], entry)
+                except ValueError:
+                    pass
+
+        def on_spin(spin, _pspec):
+            set_rgb([int(s.get_value()) for s in spins], spin)
+
         color_btn.connect("notify::rgba", on_color)
-        row = Adw.ActionRow(title="Colour")
+        hex_row.connect("changed", on_hex)
+        row = Adw.ActionRow(title="Colour", subtitle="Any colour — use “Custom” in the picker, hex or R/G/B")
         row.add_suffix(color_btn)
         row.set_activatable_widget(color_btn)
         group.add(row)
+        group.add(hex_row)
+        for spin, name, v in zip(spins, ("Red", "Green", "Blue"), (first.r, first.g, first.b)):
+            spin.set_title(name)
+            spin.set_value(v)
+            spin.connect("notify::value", on_spin)
+            group.add(spin)
 
         group.add(self.scale_row("Brightness", 0, 255, first.brightness,
                                  lambda v: update(lambda light: setattr(light, "brightness", v))))
@@ -548,6 +581,57 @@ class Window(Adw.ApplicationWindow):
         breathe.connect("notify::active", on_breathe)
         group.add(breathe)
         group.add(speed_row)
+
+    @staticmethod
+    def rgba(rgb):
+        c = Gdk.RGBA()
+        c.red, c.green, c.blue, c.alpha = rgb[0] / 255, rgb[1] / 255, rgb[2] / 255, 1
+        return c
+
+    def color_button(self, rgb):
+        btn = Gtk.ColorDialogButton(dialog=Gtk.ColorDialog(with_alpha=False), valign=Gtk.Align.CENTER)
+        btn.set_rgba(self.rgba(rgb))
+        return btn
+
+    def gradient_group(self):
+        """Static gradient: the protocol has one colour per zone and no animated mode."""
+        group = Adw.PreferencesGroup(
+            title="Gradient",
+            description="Spread a gradient over the 4 zones (zone 1 → zone 4). The controller's "
+                        "animated rainbow is a built-in mode that KeyLinker's protocol doesn't expose.")
+        n = len(self.lights)
+        ends = [self.color_button((self.lights[0].r, self.lights[0].g, self.lights[0].b)),
+                self.color_button((self.lights[-1].r, self.lights[-1].g, self.lights[-1].b))]
+        for title, btn in zip(("From", "To"), ends):
+            row = Adw.ActionRow(title=title)
+            row.add_suffix(btn)
+            row.set_activatable_widget(btn)
+            group.add(row)
+
+        def apply_gradient(*_):
+            a, b = [(c.red, c.green, c.blue) for c in (e.get_rgba() for e in ends)]
+            for i, light in enumerate(self.lights):
+                t = i / max(n - 1, 1)
+                light.r, light.g, light.b = [round((x + (y - x) * t) * 255) for x, y in zip(a, b)]
+            self.mark("lights")
+            self.rebuild_panel()
+
+        def apply_rainbow(*_):
+            for i, light in enumerate(self.lights):
+                rgba = Gdk.RGBA()
+                rgba.parse("hsl(%d, 100%%, 50%%)" % round(360 * i / n))
+                light.r, light.g, light.b = [round(v * 255) for v in (rgba.red, rgba.green, rgba.blue)]
+            self.mark("lights")
+            self.rebuild_panel()
+
+        buttons = Gtk.Box(spacing=8, margin_top=12)
+        for label, cb in (("Apply gradient", apply_gradient), ("Static rainbow", apply_rainbow)):
+            btn = Gtk.Button(label=label)
+            btn.add_css_class("pill")
+            btn.connect("clicked", cb)
+            buttons.append(btn)
+        group.add(buttons)
+        return group
 
     @staticmethod
     def scale_row(title, lo, hi, value, on_change):

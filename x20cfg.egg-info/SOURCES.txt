@@ -1,0 +1,14 @@
+README.md
+pyproject.toml
+x20cfg/__init__.py
+x20cfg/__main__.py
+x20cfg/att.py
+x20cfg/device.py
+x20cfg/gui.py
+x20cfg/keys.py
+x20cfg/protocol.py
+x20cfg.egg-info/PKG-INFO
+x20cfg.egg-info/SOURCES.txt
+x20cfg.egg-info/dependency_links.txt
+x20cfg.egg-info/entry_points.txt
+x20cfg.egg-info/top_level.txt
