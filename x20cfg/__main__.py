@@ -1,29 +1,9 @@
 """x20cfg: configure EasySMX X20 lighting and button mapping on Linux."""
 import argparse
-import glob
-import os
 import sys
 
 from . import keys
-from .device import Controller, Light
-
-BLE_OCTET = "ED"  # the config channel lives on 98:B6:ED:xx:xx:xx
-
-
-def find_address():
-    """Derive the BLE address from the paired gamepad's classic address."""
-    if os.environ.get("X20_ADDR"):
-        return os.environ["X20_ADDR"]
-    for uevent in glob.glob("/sys/class/hidraw/*/device/uevent"):
-        with open(uevent) as f:
-            props = dict(line.strip().split("=", 1) for line in f if "=" in line)
-        uniq = props.get("HID_UNIQ", "").upper()
-        if uniq.startswith("98:B6:"):
-            parts = uniq.split(":")
-            parts[2] = BLE_OCTET
-            return ":".join(parts)
-    sys.exit("controller not found; connect it over Bluetooth or pass --addr / X20_ADDR")
-
+from .device import Controller, find_address
 
 def parse_color(text):
     t = text.lstrip("#")
@@ -88,6 +68,7 @@ def main(argv=None):
     p.add_argument("-v", "--verbose", action="store_true", help="dump protocol frames")
     sub = p.add_subparsers(dest="cmd", required=True)
 
+    sub.add_parser("gui", help="open the graphical editor")
     sub.add_parser("info", help="show device info").set_defaults(func=cmd_info)
 
     lp = sub.add_parser("light", help="show or change RGB lighting")
@@ -104,7 +85,14 @@ def main(argv=None):
     mp.set_defaults(func=cmd_map)
 
     args = p.parse_args(argv)
-    with Controller(args.addr or find_address(), verbose=args.verbose) as c:
+    if args.cmd == "gui":
+        from .gui import run
+        return run(args.addr)
+    try:
+        addr = args.addr or find_address()
+    except LookupError as e:
+        sys.exit(str(e))
+    with Controller(addr, verbose=args.verbose) as c:
         args.func(c, args)
 
 

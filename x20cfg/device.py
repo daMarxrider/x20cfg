@@ -1,5 +1,6 @@
 """High-level access to an EasySMX X20 over its KeyLinker BLE channel."""
-import queue
+import glob
+import os
 import threading
 import time
 
@@ -11,6 +12,24 @@ NOTIFY_HANDLE = 0x09
 CCCD_HANDLE = 0x0A
 RESP = 25          # every reply comes back as cmd 0x19, keyed by seq
 LIVE_INPUT = 31    # streamed controller state, ignored
+
+
+BLE_OCTET = "ED"  # the config channel lives on 98:B6:ED:xx:xx:xx
+
+
+def find_address():
+    """Derive the BLE address from the paired gamepad's classic address."""
+    if os.environ.get("X20_ADDR"):
+        return os.environ["X20_ADDR"]
+    for uevent in glob.glob("/sys/class/hidraw/*/device/uevent"):
+        with open(uevent) as f:
+            props = dict(line.strip().split("=", 1) for line in f if "=" in line)
+        uniq = props.get("HID_UNIQ", "").upper()
+        if uniq.startswith("98:B6:"):
+            parts = uniq.split(":")
+            parts[2] = BLE_OCTET
+            return ":".join(parts)
+    raise LookupError("controller not found; connect it over Bluetooth or pass --addr / X20_ADDR")
 
 
 class ProtocolError(Exception):

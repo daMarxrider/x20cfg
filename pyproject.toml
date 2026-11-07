@@ -6,6 +6,7 @@ requires-python = ">=3.9"
 
 [project.scripts]
 x20cfg = "x20cfg.__main__:main"
+x20cfg-gui = "x20cfg.gui:run"
 
 [build-system]
 requires = ["setuptools>=61"]

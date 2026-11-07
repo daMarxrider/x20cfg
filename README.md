@@ -4,6 +4,12 @@ Configure an **EasySMX X20** controller from Linux — RGB lighting and back-but
 button remapping — speaking the same BLE protocol as the Android *KeyLinker* app.
 No dependencies, no root: it talks ATT over a raw kernel L2CAP socket.
 
+## GUI
+
+`python -m x20cfg gui` (needs GTK4 + libadwaita + PyGObject). Click a button on the
+controller drawing to remap it, or a light zone to change colour/brightness/breathing,
+then press **Apply**. Pressed buttons are highlighted live.
+
 ## Usage
 
 The controller just needs to be connected normally over Bluetooth (Xbox mode). The
