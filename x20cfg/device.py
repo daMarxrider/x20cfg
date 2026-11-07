@@ -97,3 +97,65 @@ class Controller:
             "firmware": "%x.%02x" % (c[4], c[5]),
             "model_byte": c[6] if len(c) > 6 else None,
         }
+
+    # --- lighting ------------------------------------------------------------
+    def read_lights(self):
+        data = self.read_paged(183)
+        return [Light.unpack(data[i:i + 6]) for i in range(0, len(data) - 5, 6)]
+
+    def write_lights(self, lights):
+        data = [b for light in lights for b in light.pack()]
+        self.write_chunked(55, [len(data)] + data)
+
+    # --- button remapping ------------------------------------------------------
+    def read_keys(self):
+        """Remappable physical keys, in the order the remap table uses."""
+        r = self.request(176, [0, 3])
+        total, raw = r[0], list(r[2:])
+        page = 0
+        while len(raw) + 1 < total:
+            page += 1
+            raw += list(self.request(176, [page, 3]))
+        keys = []
+        for b in raw:
+            if b & 0x80:  # run-length: N consecutive codes ending here
+                keys += [keys[-1] + i for i in range(1, b & 0x7F)]
+            else:
+                keys.append(b)
+        return keys
+
+    def read_mapping(self):
+        """{physical key: emitted key} for every remappable key."""
+        keys = self.read_keys()
+        targets = self.read_paged(182)
+        targets += [0] * (len(keys) - len(targets))
+        return {k: (t or k) for k, t in zip(keys, targets)}
+
+    def write_mapping(self, mapping):
+        keys = self.read_keys()
+        targets = [0 if mapping.get(k, k) == k else mapping[k] for k in keys]
+        self.write_chunked(54, [len(keys)] + targets)
+
+
+class Light:
+    """One lighting zone: colour, brightness and optional breathing."""
+
+    def __init__(self, r, g, b, brightness=255, breathing=False, speed=0):
+        self.r, self.g, self.b = r, g, b
+        self.brightness = brightness
+        self.breathing = breathing
+        self.speed = speed  # 0..2048, only meaningful with breathing
+
+    @classmethod
+    def unpack(cls, d):
+        return cls(d[0], d[1], d[2], d[5], bool(d[4] & 0x80), ((d[4] & 0x0F) << 8) | d[3])
+
+    def pack(self):
+        flags = (0x80 if self.breathing else 0) | ((self.speed >> 8) & 0x0F)
+        return [self.r, self.g, self.b, self.speed & 0xFF, flags, self.brightness]
+
+    def __repr__(self):
+        s = "#%02x%02x%02x brightness=%d" % (self.r, self.g, self.b, self.brightness)
+        if self.breathing:
+            s += " breathing speed=%d" % self.speed
+        return s

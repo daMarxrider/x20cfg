@@ -1,0 +1,12 @@
+[project]
+name = "x20cfg"
+version = "0.1.0"
+description = "Configure EasySMX X20 lighting and button mapping on Linux (KeyLinker protocol)"
+requires-python = ">=3.9"
+
+[project.scripts]
+x20cfg = "x20cfg.__main__:main"
+
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
